@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Sri Lanka Bus Simulator 3D - Nuwara Eliya Edition</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; width: 100vw; height: 100vh; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #fff; touch-action: none; user-select: none; }
+    canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+    
+    /* TOP HUD BAR */
+    #hud-top {
+      position: absolute; top: 10px; left: 10px; right: 10px; z-index: 10;
+      display: flex; justify-content: space-between; align-items: center; pointer-events: none;
+    }
+    .hud-card {
+      background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px; padding: 6px 14px; backdrop-filter: blur(8px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    
+    /* DASHBOARD OVERLAY FRAME */
+    #dashboard-overlay {
+      position: absolute; bottom: 0; left: 0; width: 100%; height: 55%;
+      z-index: 5; pointer-events: none;
+      background: linear-gradient(to top, rgba(15,15,18,1) 75%, rgba(25,25,30,0.8) 92%, transparent 100%);
+      border-top: 5px solid #222;
+    }
+
+    /* CONTROLS LAYOUT */
+    #controls {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 20; pointer-events: none;
+    }
+
+    /* LEFT SIDE CONTROLS */
+    .left-controls {
+      position: absolute; bottom: 15px; left: 15px; pointer-events: auto;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    #steering-container {
+      width: 150px; height: 150px; position: relative; touch-action: none;
+      display: flex; justify-content: center; align-items: center;
+    }
+    #steering-wheel {
+      width: 140px; height: 140px; border: 14px solid #2c3e50; border-radius: 50%;
+      position: absolute; display: flex; justify-content: center; align-items: center;
+      box-shadow: inset 0 0 10px #000, 0 8px 20px rgba(0,0,0,0.8);
+      background: radial-gradient(circle, #34495e 20%, #1a252f 80%);
+      transition: transform 0.05s linear;
+    }
+    #steering-wheel::before { content: ''; width: 10px; height: 55px; background: #7f8c8d; position: absolute; top: 0; border-radius: 5px; }
+    #steering-wheel::after { content: '🚌'; font-size: 22px; width: 40px; height: 40px; background: #e74c3c; border: 3px solid #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; position: absolute; }
+
+    /* BUTTONS STYLE */
+    .btn-group { display: flex; gap: 8px; }
+    .btn-icon {
+      background: rgba(30, 41, 59, 0.9); border: 2px solid rgba(255,255,255,0.2);
+      color: #fff; font-size: 16px; font-weight: bold; border-radius: 50%;
+      width: 44px; height: 44px; display: flex; justify-content: center; align-items: center;
+      touch-action: manipulation; box-shadow: 0 4px 10px rgba(0,0,0,0.5); cursor: pointer;
+    }
+    .btn-icon.active { background: #f1c40f; color: #000; box-shadow: 0 0 15px #f1c40f; }
+
+    /* RIGHT SIDE PEDALS & GEAR */
+    .right-controls {
+      position: absolute; bottom: 15px; right: 15px; pointer-events: auto;
+      display: flex; gap: 10px; align-items: flex-end;
+    }
+    .pedal {
+      background: rgba(30, 30, 30, 0.95); border: 2px solid rgba(255,255,255,0.3);
+      color: #fff; font-weight: 800; border-radius: 10px; padding: 15px 14px;
+      touch-action: manipulation; box-shadow: 0 6px 15px rgba(0,0,0,0.6);
+      display: flex; flex-direction: column; align-items: center; font-size: 13px;
+    }
+    #btn-accel { background: linear-gradient(180deg, #1e7e34, #155724); height: 110px; justify-content: flex-end; width: 55px; }
+    #btn-brake { background: linear-gradient(180deg, #bd2130, #721c24); height: 85px; justify-content: flex-end; width: 55px; }
+
+    .gear-selector {
+      display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.7);
+      padding: 6px; border-radius: 8px; border: 1px solid #555;
+    }
+    .gear-btn {
+      width: 32px; height: 30px; border-radius: 6px; border: none; background: #333; color: #fff;
+      font-weight: bold; font-size: 12px; cursor: pointer;
+    }
+    .gear-btn.active { background: #2ecc71; color: #000; }
+
+    /* NOTIFICATION BANNER */
+    #toast {
+      position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+      background: rgba(241, 196, 15, 0.95); color: #000; font-weight: bold;
+      padding: 8px 18px; border-radius: 20px; z-index: 30; font-size: 13px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP HUD -->
+  <div id="hud-top">
+    <div class="hud-card">
+      <div style="font-size: 10px; color: #f1c40f; font-weight: bold;">🇱🇰 SRI LANKA BUS SIMULATOR</div>
+      <div style="font-size: 14px; font-weight: 800;">NUWARA ELIYA → COLOMBO</div>
+    </div>
+    <div class="hud-card" style="text-align: right;">
+      <div id="speed" style="font-size: 20px; font-weight: 900; color: #2ecc71;">0 km/h</div>
+      <div style="font-size: 11px; opacity: 0.9;">💵 Income: <span id="money" style="color:#f1c40f;">LKR 0</span></div>
+    </div>
+  </div>
+
+  <div id="toast">🚍 Bus Halt Ahead! Stop & Open Door</div>
+  <div id="dashboard-overlay"></div>
+
+  <!-- CONTROLS -->
+  <div id="controls">
+    <!-- LEFT CONTROLS -->
+    <div class="left-controls">
+      <div class="btn-group">
+        <button class="btn-icon" id="sig-left">◀</button>
+        <button class="btn-icon" id="btn-horn">📯</button>
+        <button class="btn-icon" id="sig-right">▶</button>
+      </div>
+      <div id="steering-container">
+        <div id="steering-wheel"></div>
+      </div>
+    </div>
+
+    <!-- CENTER CONTROLS -->
+    <div style="position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); pointer-events: auto; display: flex; gap: 10px;">
+      <button class="btn-icon" id="btn-door" style="border-radius: 10px; width: 70px; font-size: 12px; background: #2980b9;">DOOR</button>
+      <button class="btn-icon" id="btn-lights" style="border-radius: 10px; width: 60px; font-size: 12px; background: #d35400;">LIGHTS</button>
+    </div>
+
+    <!-- RIGHT CONTROLS -->
+    <div class="right-controls">
+      <div class="gear-selector">
+        <button class="gear-btn active" id="gear-d">D</button>
+        <button class="gear-btn" id="gear-n">N</button>
+        <button class="gear-btn" id="gear-r">R</button>
+      </div>
+      <button class="pedal" id="btn-brake">BRAKE</button>
+      <button class="pedal" id="btn-accel">GAS</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    let scene, camera, renderer;
+    let speed = 0, distance = 0, income = 0;
+    let steeringAngle = 0, gear = 'D';
+    let accelerating = false, braking = false;
+    let doorOpen = false, nearHalt = false;
+    let roadSegments = [];
+    let roadLength = 300;
+
+    function init() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x87ceeb);
+      scene.fog = new THREE.FogExp2(0x87ceeb, 0.003);
+
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(-0.6, 2.3, 1.2);
+      camera.lookAt(-0.6, 2.1, 50);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      const ambient = new THREE.AmbientLight(0xffffff, 0.85);
+      scene.add(ambient);
+
+      const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+      sun.position.set(60, 120, 60);
+      scene.add(sun);
+
+      createEnvironment();
+      setupControls();
+
+      window.addEventListener('resize', onResize);
+      animate();
+    }
+
+    function createEnvironment() {
+      const roadGeo = new THREE.PlaneGeometry(16, roadLength);
+      const roadMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+
+      const grassGeo = new THREE.PlaneGeometry(300, roadLength);
+      const grassMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32 });
+
+      for (let i = 0; i < 3; i++) {
+        const group = new THREE.Group();
+
+        const road = new THREE.Mesh(roadGeo, roadMat);
+        road.rotation.x = -Math.PI / 2;
+        group.add(road);
+
+        const grass = new THREE.Mesh(grassGeo, grassMat);
+        grass.rotation.x = -Math.PI / 2;
+        grass.position.y = -0.05;
+        group.add(grass);
+
+        // Center yellow road line
+        const lineGeo = new THREE.PlaneGeometry(0.3, roadLength);
+        const lineMat = new THREE.MeshBasicMaterial({ color: 0xffeb3b });
+        const line = new THREE.Mesh(lineGeo, lineMat);
+        line.rotation.x = -Math.PI / 2;
+        line.position.y = 0.02;
+        group.add(line);
+
+        // Tea Gardens & Bus Halts
+        for (let z = -roadLength/2; z < roadLength/2; z += 25) {
+          createTeaPlant(group, -12, z);
+          createTeaPlant(group, 12, z);
+        }
+
+        // Add Tea Shop & Bus Stop on first segment
+        if (i === 1) {
+          createTeaShopAndHalt(group, 10, 0);
+        }
+
+        group.position.z = i * roadLength;
+        scene.add(group);
+        roadSegments.push(group);
+      }
+    }
+
+    function createTeaPlant(parent, x, z) {
+      const plantGeo = new THREE.SphereGeometry(1.5, 6, 6);
+      const plantMat = new THREE.MeshStandardMaterial({ color: 0x1b5e20 });
+      const plant = new THREE.Mesh(plantGeo, plantMat);
+      plant.position.set(x, 0.8, z);
+      parent.add(plant);
+    }
+
+    function createTeaShopAndHalt(parent, x, z) {
+      // Tea Shop Building
+      const shopGeo = new THREE.BoxGeometry(8, 4, 6);
+      const shopMat = new THREE.MeshStandardMaterial({ color: 0xa0522d });
+      const shop = new THREE.Mesh(shopGeo, shopMat);
+      shop.position.set(x + 4, 2, z);
+      parent.add(shop);
+
+      // Passengers sitting/standing
+      const pGeo = new THREE.CylinderGeometry(0.3, 0.3, 1.6);
+      const pMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
+      const person = new THREE.Mesh(pGeo, pMat);
+      person.position.set(x, 0.8, z + 2);
+      parent.add(person);
+    }
+
+    function setupControls() {
+      const wheel = document.getElementById('steering-wheel');
+      const container = document.getElementById('steering-container');
+      let active = false, centerPos = { x: 0, y: 0 };
+
+      container.addEventListener('pointerdown', (e) => {
+        active = true;
+        const rect = container.getBoundingClientRect();
+        centerPos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        e.preventDefault();
+      });
+
+      window.addEventListener('pointermove', (e) => {
+        if (!active) return;
+        const dx = e.clientX - centerPos.x;
+        const dy = e.clientY - centerPos.y;
+        let angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+        if (angle > 180) angle -= 360;
+        if (angle < -180) angle += 360;
+
+        steeringAngle = Math.max(-120, Math.min(120, angle));
+        wheel.style.transform = `rotate(${steeringAngle}deg)`;
+      });
+
+      const resetSteer = () => { active = false; steeringAngle = 0; wheel.style.transform = `rotate(0deg)`; };
+      window.addEventListener('pointerup', resetSteer);
+
+      // PEDALS
+      const bindBtn = (id, start, end) => {
+        const el = document.getElementById(id);
+        el.addEventListener('pointerdown', (e) => { e.preventDefault(); start(); });
+        el.addEventListener('pointerup', (e) => { e.preventDefault(); end(); });
+      };
+
+      bindBtn('btn-accel', () => accelerating = true, () => accelerating = false);
+      bindBtn('btn-brake', () => braking = true, () => braking = false);
+
+      // GEARS
+      document.getElementById('gear-d').onclick = function() { setGear('D', this); };
+      document.getElementById('gear-n').onclick = function() { setGear('N', this); };
+      document.getElementById('gear-r').onclick = function() { setGear('R', this); };
+
+      function setGear(g, btn) {
+        gear = g;
+        document.querySelectorAll('.gear-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+
+      // HORN & DOOR
+      document.getElementById('btn-horn').onclick = function() {
+        alert("📯 PEEP PEEP! Horn Sounded!");
+      };
+
+      document.getElementById('btn-door').onclick = function() {
+        doorOpen = !doorOpen;
+        this.style.background = doorOpen ? "#e74c3c" : "#2980b9";
+        if (doorOpen && speed < 0.1) {
+          income += 150;
+          document.getElementById('money').innerText = "LKR " + income;
+          alert("🚌 Passengers Boarded / Alighted! +LKR 150 Earned!");
+        }
+      };
+    }
+
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      let factor = (gear === 'D') ? 1 : (gear === 'R') ? -0.5 : 0;
+
+      if (accelerating && gear !== 'N') speed += 0.04 * factor;
+      else if (braking) speed -= 0.1;
+      else speed *= 0.96;
+
+      speed = Math.max(-0.4, Math.min(speed, 1.2));
+      distance += speed * 0.05;
+
+      let turn = (steeringAngle / 120) * 0.12;
+      camera.position.x += turn;
+      camera.position.x = Math.max(-4.5, Math.min(4.5, camera.position.x));
+      camera.rotation.y = -turn * 0.25;
+
+      roadSegments.forEach(road => {
+        road.position.z -= speed * 1.5;
+        if (road.position.z < -100) road.position.z += roadLength * 3;
+      });
+
+      document.getElementById('speed').innerText = Math.round(Math.abs(speed) * 80) + ' km/h';
+
+      renderer.render(scene, camera);
+    }
+
+    init();
+  </script>
+</body>
+</html>
